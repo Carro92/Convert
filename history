@@ -1,0 +1,157 @@
+## Skapa en mapp som du döper till CurrencyConverter
+- git init
+skapa två mappar "api" och "web"
+- skapa en ".gitignore" fil och skriv in bin/
+obj/
+.vscode/
+.env
+ i den
+
+ Gör nu
+ - git add .
+ - git status
+ - git commit -m "byggt nytt projekt"
+
+ ## Koppla till github repot
+- Gå in på github
+ -skapa nytt repo
+ - döp den till "CurrencyConverter"
+- Skapa repo
+
+## för att slå ihop
+- git pull origin main --allow-unrelated-histories
+- git add .
+- git commit -m "löst konflikt"
+- git push -u origin main
+
+## För att skapa en function app lokalt. 
+Se till att du är inloggad på Azure inne på vs code. 
+- Tryck på Ctrl + Shift + P 
+- Azure Functions: Create New Project
+- Navigera till din CurrencyConverter/api-mapp och välj den.
+- Välj C#
+- Välj .NET 6.0 LTS
+- HTTP TRIGGER
+- Döp Functionen till : GetExchaneRates
+- Namespace: CurrencyConverter
+- Anonymous
+
+## För att testa Function appen lokalt
+- Öppna terminalen i mappen "api" och skriv 
+- func start går det rätt till får du en URL
+- Kopiera URL och skriv in den i din brownser
+- Får du upp en hemsida så har du gjort rätt men du måste också gå in på azure och skapa en storage account
+
+## Skapa RG & Storage Account på Azure
+- Gå till Azure portalen
+- Börja med att skapa en resursgrupp
+- "Create"
+- Döp den till "currency-converter-rg"
+- Region (West Europe))
+- Skapa
+- Gå in på fliken "Storage account"
+- "Create"
+- RG : välj den du skapat tidigare "currency-converter-rg"
+- Name: "currencyconverterstorage"
+-  Samma region som tidigare (West Europe)
+- Prestanda: Standard
+- Replikering : Lokalt redundant lagring
+- Spara och skapa
+
+## För att hämta en anslutningssträng ifrån Storage account
+- Gå till "Storage account" och välj den du har skapat
+- Gå till access keys i vänstra vyn där det står "security & networking" och under key1 där det står connection string kopiera den
+- Gå till vs code och gå in på filen "local.settings.json" och lägg till strängen där det står "AzureWebJobsStorage"
+- Kör sedan Func start för att se så att allt funkar som det ska och inte får några felmeddelanden i vs code terminalen
+
+## För att använda en API nyckel ifrån Open exchange rates
+- Gå in på hemsidan och hämta din api nyckel där. Kopiera den och gå in på vs code
+- Gå in på "local.settings.json" och lägg till en rad längst ner 
+- "OpenExchangeRatesApiKey": "" // Här lägger du in din api nyckel
+- Gå nu in på "api" -> "Program.cs" och klistra in denna kod 
+"
+using Microsoft.Azure.Functions.Worker.Configuration;
+using Microsoft.Extensions.Hosting;
+
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
+    .Build();
+
+host.Run();
+
+"
+## Skapa en ny mapp "functions" i mappen "api" och lägg in filen "GetExchangeRates.cs" // Läser apinyckel, skapar en url till api, använder httpcliend för en get förfrågan hämtar växlingskursen, tar fram 10 mest vanliga valutorna
+- Skriv in koden
+"
+using System;
+using System.Net.Http;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
+using System.Text.Json;
+
+namespace api.Functions
+{
+    public class GetExchangeRates
+    {
+        private readonly HttpClient _httpClient;
+        private readonly ILogger _logger;
+
+        public GetExchangeRates(HttpClient httpClient, ILoggerFactory loggerFactory)
+        {
+            _httpClient = httpClient;
+            _logger = loggerFactory.CreateLogger<GetExchangeRates>();
+        }
+
+        [Function("GetExchangeRates")]
+        public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequestData req)
+        {
+            var apiKey = Environment.GetEnvironmentVariable("OpenExchangeRatesApiKey");
+            var url = $"https://openexchangerates.org/api/latest.json?app_id={apiKey}";
+
+            _logger.LogInformation("Fetching exchange rates...");
+
+            try
+            {
+                var response = await _httpClient.GetStringAsync(url);
+                var json = JsonDocument.Parse(response);
+
+                var rates = json.RootElement.GetProperty("rates");
+
+                var top10Rates = new
+                {
+                    USD = rates.GetProperty("USD").GetDecimal(),
+                    EUR = rates.GetProperty("EUR").GetDecimal(),
+                    GBP = rates.GetProperty("GBP").GetDecimal(),
+                    JPY = rates.GetProperty("JPY").GetDecimal(),
+                    AUD = rates.GetProperty("AUD").GetDecimal(),
+                    CAD = rates.GetProperty("CAD").GetDecimal(),
+                    CHF = rates.GetProperty("CHF").GetDecimal(),
+                    SEK = rates.GetProperty("SEK").GetDecimal(),
+                    NOK = rates.GetProperty("NOK").GetDecimal(),
+                    DKK = rates.GetProperty("DKK").GetDecimal()
+                };
+
+                var responseData = req.CreateResponse(System.Net.HttpStatusCode.OK);
+                await responseData.WriteAsJsonAsync(top10Rates);
+                return responseData;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error fetching exchange rates: {ex.Message}");
+                var errorResponse = req.CreateResponse(System.Net.HttpStatusCode.InternalServerError);
+                await errorResponse.WriteStringAsync("Error fetching exchange rates.");
+                return errorResponse;
+            }
+        }
+    }
+}
+
+"
+
+## För att testa och se om den kör lokalt med API
+Öppna terminalen i "api" mappen och skriv
+- dotnet restore
+- dotnet build
+- func start
