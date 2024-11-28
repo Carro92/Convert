@@ -1,6 +1,20 @@
-## Skapa en mapp som du döper till CurrencyConverter
+## Skapa en mapp som du döper till Convert/ kolla till github så det blir ett repo
+-Öppna terminalen
 - git init
+- echo "# Convert" > README.md
+- touch .gitignore
+- git add .
+- git commit -m "Första kommit"
+- tryck på ctrl+shift+p
+- välj "publish to github
+- välj public
+- 
+
+
+## Nästa steg
 skapa två mappar "api" och "web"
+
+
 - skapa en ".gitignore" fil och skriv in bin/
 obj/
 .vscode/
