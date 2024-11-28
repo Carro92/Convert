@@ -1,0 +1,3 @@
+# Ignorera api/obj och api/bin
+/api/obj/
+/api/bin/
